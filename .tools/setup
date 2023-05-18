@@ -1,0 +1,15 @@
+#!/usr/bin/php -f 
+<?php
+    require_once __DIR__ . "/../lib/de/roccogossmann/php/workspace/Setup.php";
+
+    if(file_exists(__DIR__ . "/../loader.php"))
+        unlink(__DIR__ . "/../loader.php");
+
+    echo \de\roccogossmann\php\workspace\Setup::create(".")
+        ->addLib("lib/de/roccogossmann/php/funframes")
+        ->compile("loader.php")
+
+        ? "success"
+        : "failed"
+    ;
+
