@@ -1,0 +1,3 @@
+[submodule "lib/de/roccogossmann/php/workspace"]
+	path = lib/de/roccogossmann/php/workspace
+	url = git@github.com:Rocco-Gossmann/php-workspace.git
