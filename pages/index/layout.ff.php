@@ -1,7 +1,7 @@
 <?php
  $file='./pages/index/layout.html';
 
- $hash='f1c8684078f0e59547245ceeda41db45748c9b38be18bcec75e054d7a691c9df';
+ $hash='22147b7107cbfe10f867630ac80f7e8c47a05d9056126d712ea3dbb339a0f66a';
 
  $chunks=array (
   0 => 
@@ -23,7 +23,7 @@
   ),
   3 => 
   array (
-    0 => 'tpl',
+    0 => 'dyn',
     1 => 'CONTENT',
   ),
   4 => 

@@ -36,6 +36,7 @@ class Layout {
                     switch($mode) {
                         case 0: $aChunks[] = ["raw", $iLastChunkStart, ($iReadHead-4) - $iLastChunkStart]; break;
                         case 1: $aChunks[] = ["tpl", $sTPL]; break;
+                        case 2: $aChunks[] = ["dyn", $sTPL]; break;
                     }
 
                     $bKeepReading=false;
@@ -49,11 +50,12 @@ class Layout {
 
                     switch($mode) {
                     case 0:
-                        if($sLast4 === "[[--") {
+                        switch($sLast4) {
+                        case "[[--": $mode = 1;
+                        case "{{--": if($sLast4 === "{{--") $mode = 2;
                             $aChunks[] = ["raw", $iLastChunkStart, ($iReadHead-4) - $iLastChunkStart];
                             $iLastChunkStart = $iReadHead;
                             $sTPL = "";
-                            $mode = 1;
                         }
                         break;
 
@@ -65,6 +67,16 @@ class Layout {
                         }
                         else $sTPL.=$chr;
                         break;
+
+                    case 2:
+                        if($sLast4 === "--}}") {
+                            $aChunks[] = ["dyn", substr($sTPL, 0, -3)];
+                            $iLastChunkStart = $iReadHead;
+                            $mode = 0;
+                        }
+                        else $sTPL.=$chr;
+                        break;
+
 
                     }
                 }
@@ -116,15 +128,12 @@ class Layout {
         }
         else $bRecompile=true;
 
-
         if($bRecompile) {
             $oI = static::buildNew($sRawFile);
             $oI->compile($sDefinitionFile);
             return $oI;
         }
-
     }
-
 
     public function compile($sDefinitionFileName) {
         $hF = fopen($sDefinitionFileName, "w");
@@ -141,12 +150,10 @@ class Layout {
         fclose($hF);
     }
 
-    public function fillTemplate($sTemplate) {
-        echo "Template: " . strtolower($sTemplate);
-    }
-
-    public function render() {
+    public function render(callable $slotCallback) {
         if(empty($this->aChunks)) return;
+
+        if(!is_callable($slotCallback)) $slotCallback = function() {};
 
         $hF = fopen($this->sRawFile, "r");
         if($hF) {
@@ -159,18 +166,25 @@ class Layout {
                         echo fread($hF, $aChunk[2]);
                     }
                     break;
+
                 case 'tpl':
-                    $this->fillTemplate($aChunk[1]);
+                    $slotCallback($aChunk[1]);
+                    break;
+
+                case 'dyn':
+                    echo "<span data-phpff=\"", htmlspecialchars($aChunk[1]), "\">";
+                    $slotCallback($aChunk[1]);
+                    echo "</span>";
+
                     break;
                 }
             }
     
             fclose($hF);
 
-        } else throw new LayoutException("failed to open '$sRawTemplateFile'", LayoutException::FAILED_TO_OPEN_FILE);
+        } else throw new LayoutException("failed to open '{$$this->sRawFile}'", LayoutException::FAILED_TO_OPEN_FILE);
 
     }
-
 
     private function __constructor(){}
 }
