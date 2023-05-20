@@ -6,6 +6,7 @@
         unlink(__DIR__ . "/../loader.php");
 
     echo \de\roccogossmann\php\workspace\Setup::create(".")
+        ->addLib("lib/de/roccogossmann/php/core")
         ->addLib("lib/de/roccogossmann/php/funframes")
         ->compile("loader.php")
 

@@ -9,7 +9,7 @@ class Layout {
      *
      * @return static returns a valid Layout Instance
      */
-    public static function buildNew($sRawTemplateFile) {
+    public static function create($sRawTemplateFile) {
         $oI = new static();
         
         $oI->sRawFile = $sRawTemplateFile;
@@ -34,9 +34,11 @@ class Layout {
                 if(feof($hF)) {
 
                     switch($mode) {
-                        case 0: $aChunks[] = ["raw", $iLastChunkStart, ($iReadHead-4) - $iLastChunkStart]; break;
+                        case 0: $aChunks[] = ["raw", $iLastChunkStart, $iReadHead-$iLastChunkStart+2]; break;
                         case 1: $aChunks[] = ["tpl", $sTPL]; break;
                         case 2: $aChunks[] = ["dyn", $sTPL]; break;
+                        case 3: $aChunks[] = ["html", $sTPL]; break;
+                        case 4: $aChunks[] = ["dhtm", $sTPL]; break;
                     }
 
                     $bKeepReading=false;
@@ -53,31 +55,25 @@ class Layout {
                         switch($sLast4) {
                         case "[[--": $mode = 1;
                         case "{{--": if($sLast4 === "{{--") $mode = 2;
+                        case "[@--": if($sLast4 === "[@--") $mode = 3;
+                        case "{@--": if($sLast4 === "{@--") $mode = 4;
                             $aChunks[] = ["raw", $iLastChunkStart, ($iReadHead-4) - $iLastChunkStart];
                             $iLastChunkStart = $iReadHead;
                             $sTPL = "";
                         }
                         break;
 
-                    case 1:
-                        if($sLast4 === "--]]") {
-                            $aChunks[] = ["tpl", substr($sTPL, 0, -3)];
+                    case 1: $sTPLType = "tpl"; $sTPLClose = "--]]";
+                    case 2: if($mode == 2) { $sTPLType = "dyn"; $sTPLClose = "--}}"; }
+                    case 3: if($mode == 3) { $sTPLType = "html"; $sTPLClose = "--]]"; }
+                    case 4: if($mode == 4) { $sTPLType = "dhtm"; $sTPLClose = "--}}"; }
+                        if($sLast4 === $sTPLClose) {
+                            $aChunks[] = [$sTPLType, substr($sTPL, 0, -3)];
                             $iLastChunkStart = $iReadHead;
                             $mode = 0;
                         }
                         else $sTPL.=$chr;
                         break;
-
-                    case 2:
-                        if($sLast4 === "--}}") {
-                            $aChunks[] = ["dyn", substr($sTPL, 0, -3)];
-                            $iLastChunkStart = $iReadHead;
-                            $mode = 0;
-                        }
-                        else $sTPL.=$chr;
-                        break;
-
-
                     }
                 }
             }
@@ -90,12 +86,9 @@ class Layout {
         return $oI;
     }
 
-
-
     private $sRawFile = "";
     private $sFileHash = "";
     private $aChunks = [];
-
 
     /**
      * Load an already defined Template file
@@ -106,8 +99,8 @@ class Layout {
      */
     public static function load($sDefinitionFile) {
 
-        $sRawFile = $sDefinitionFile.".html";
-        $sDefinitionFile = $sDefinitionFile.".ff.php";
+        $sRawFile = $sDefinitionFile."/layout.html";
+        $sDefinitionFile = $sDefinitionFile."/layout.ff.php";
 
         $oI = new static();
         $bRecompile = false;
@@ -129,7 +122,7 @@ class Layout {
         else $bRecompile=true;
 
         if($bRecompile) {
-            $oI = static::buildNew($sRawFile);
+            $oI = static::create($sRawFile);
             $oI->compile($sDefinitionFile);
             return $oI;
         }
@@ -139,21 +132,18 @@ class Layout {
         $hF = fopen($sDefinitionFileName, "w");
         if(!$hF)  throw new LayoutException("failed to open '$sDefinitionFileName'", LayoutException::FAILED_TO_OPEN_FILE);
 
-        fwrite($hF, "<?php\n \$file=");
-        fwrite($hF, var_export($this->sRawFile, true));
-        fwrite($hF, ";\n\n \$hash=");
-        fwrite($hF, var_export($this->sFileHash, true));
-        fwrite($hF, ";\n\n \$chunks=");
-        fwrite($hF, var_export($this->aChunks, true));
+        fwrite($hF, "<?php\n \$file="); fwrite($hF, var_export($this->sRawFile, true));
+        fwrite($hF, ";\n\n \$hash=");   fwrite($hF, var_export($this->sFileHash, true));
+        fwrite($hF, ";\n\n \$chunks="); fwrite($hF, var_export($this->aChunks, true));
         fwrite($hF, ";\n");
 
         fclose($hF);
     }
 
-    public function render(callable $slotCallback) {
+    public function render($slotCallback, $sPrefix="") {
         if(empty($this->aChunks)) return;
 
-        if(!is_callable($slotCallback)) $slotCallback = function() {};
+        $myPrefix = empty($sPrefix) ? "" : $sPrefix."."; 
 
         $hF = fopen($this->sRawFile, "r");
         if($hF) {
@@ -168,22 +158,26 @@ class Layout {
                     break;
 
                 case 'tpl':
-                    $slotCallback($aChunk[1]);
+                case 'html':
+                    call_user_func($slotCallback, $aChunk[1], $aChunk[0] == 'html' ? 'raw' : 'html', $myPrefix . strtolower($aChunk[1]));
                     break;
 
                 case 'dyn':
-                    echo "<span data-phpff=\"", htmlspecialchars($aChunk[1]), "\">";
-                    $slotCallback($aChunk[1]);
+                case 'dhtm':
+                    echo "<span data-phpff=\"", htmlspecialchars($myPrefix . strtolower($aChunk[1])), "\">";
+                    call_user_func(
+                        $slotCallback, $aChunk[1], 
+                        $aChunk[0] == 'dhtm' ? "raw" : 'html', 
+                        $myPrefix . strtolower($aChunk[1]));
                     echo "</span>";
-
                     break;
+
                 }
             }
     
             fclose($hF);
 
         } else throw new LayoutException("failed to open '{$$this->sRawFile}'", LayoutException::FAILED_TO_OPEN_FILE);
-
     }
 
     private function __constructor(){}

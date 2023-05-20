@@ -1,17 +1,11 @@
 <?php require_once __DIR__ . "/loader.php";
 
+use de\roccogossmann\php\funframes\Component;
 use \de\roccogossmann\php\funframes\Layout;
+use \de\roccogossmann\php\funframes\Page;
 
-$oLayout = Layout::load("./pages/index/layout");
-$oLayout->render(function($slot) { 
-    switch($slot) {
-    case "HEADERS":
-        echo "<script type=\"text/javascript\">alert('hello')</script>";
-        break;
-
-    default:
-        echo "TEMPLATE: $slot";
-        break;
-    }
-} );
-
+Page::create(Layout::load("./pages/index"))
+    ->setChildCompnent("content", Component::create(Layout::load("./components/debugging")))
+    ->loadData("./data/debugger.php") 
+    ->render()
+;
