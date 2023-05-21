@@ -1,3 +1,7 @@
 [submodule "lib/de/roccogossmann/php/workspace"]
-	path = lib/de/roccogossmann/php/workspace
-	url = git@github.com:Rocco-Gossmann/php-workspace.git
+    path = lib/de/roccogossmann/php/workspace
+    url = git@github.com:Rocco-Gossmann/php-workspace.git
+[submodule "lib/de/roccogossmann/php/core"]
+    path = lib/de/roccogossmann/php/core
+    url = git@github.com:Rocco-Gossmann/php-core.git
+    branch = 1.0
