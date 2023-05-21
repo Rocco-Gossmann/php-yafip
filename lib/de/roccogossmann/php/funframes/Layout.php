@@ -19,6 +19,7 @@ class Layout {
         if($hF) {
 
             $aChunks = [];
+            $aTokens = [];
 
             $iReadHead = 0;
             $iLastChunkStart = 0;
@@ -33,16 +34,20 @@ class Layout {
 
                 if(feof($hF)) {
 
+                    $sTPL = substr($sTPL, 0, -3);
+
+                    if(strpos($sTPL, ".") !== false) 
+                        throw new LayoutException("tokens cant contain '.'", LayoutException::PARSE_ERROR);
+
                     switch($mode) {
                         case 0: $aChunks[] = ["raw", $iLastChunkStart, $iReadHead-$iLastChunkStart+2]; break;
-                        case 1: $aChunks[] = ["tpl", $sTPL]; break;
-                        case 2: $aChunks[] = ["dyn", $sTPL]; break;
-                        case 3: $aChunks[] = ["html", $sTPL]; break;
-                        case 4: $aChunks[] = ["dhtm", $sTPL]; break;
+                        case 1: $aChunks[] = ["tpl", $sTPL]  ;$aTokens[$sTPL] = $sTPL  ; break;
+                        case 2: $aChunks[] = ["dyn", $sTPL]  ;$aTokens[$sTPL] = $sTPL  ; break;
+                        case 3: $aChunks[] = ["html", $sTPL] ;$aTokens[$sTPL] = $sTPL  ; break;
+                        case 4: $aChunks[] = ["dhtm", $sTPL] ;$aTokens[$sTPL] = $sTPL  ; break;
                     }
 
                     $bKeepReading=false;
-
                 }
                 else {
 
@@ -68,7 +73,13 @@ class Layout {
                     case 3: if($mode == 3) { $sTPLType = "html"; $sTPLClose = "--]]"; }
                     case 4: if($mode == 4) { $sTPLType = "dhtm"; $sTPLClose = "--}}"; }
                         if($sLast4 === $sTPLClose) {
-                            $aChunks[] = [$sTPLType, substr($sTPL, 0, -3)];
+
+                            $sTPL = substr($sTPL, 0, -3);
+                            if(strpos($sTPL, ".") !== false) 
+                                throw new LayoutException("tokens cant contain '.'", LayoutException::PARSE_ERROR);
+
+                            $aChunks[] = [$sTPLType, ];
+                            $aTokens[$sTPL] = $sTPL;
                             $iLastChunkStart = $iReadHead;
                             $mode = 0;
                         }
@@ -79,6 +90,7 @@ class Layout {
             }
 
             $oI->aChunks = $aChunks;
+            $oI->aTokens = $aTokens;
 
             fclose($hF);
         } else throw new LayoutException("failed to open '$sRawTemplateFile'", LayoutException::FAILED_TO_OPEN_FILE);
@@ -89,6 +101,8 @@ class Layout {
     private $sRawFile = "";
     private $sFileHash = "";
     private $aChunks = [];
+    private $aTokens = [];
+
 
     /**
      * Load an already defined Template file
@@ -111,9 +125,11 @@ class Layout {
                 throw new LayoutException("failed to open '$sDefinitionFileName' => does not fullfill expected format", LayoutException::FAILED_TO_OPEN_FILE);
              
             if($hash === hash_file("sha256", $file)) {
+
                 $oI->sRawFile = $file;
                 $oI->sFileHash = $hash;
                 $oI->aChunks = $chunks;
+                $oI->aTokens = $tokens;
 
                 return $oI;
             }
@@ -135,10 +151,13 @@ class Layout {
         fwrite($hF, "<?php\n \$file="); fwrite($hF, var_export($this->sRawFile, true));
         fwrite($hF, ";\n\n \$hash=");   fwrite($hF, var_export($this->sFileHash, true));
         fwrite($hF, ";\n\n \$chunks="); fwrite($hF, var_export($this->aChunks, true));
+        fwrite($hF, ";\n\n \$tokens="); fwrite($hF, var_export($this->aTokens, true));
         fwrite($hF, ";\n");
 
         fclose($hF);
     }
+
+    public function getTokens() { return $this->aTokens; }
 
     public function render($slotCallback, $sPrefix="") {
         if(empty($this->aChunks)) return;
@@ -185,4 +204,5 @@ class Layout {
 
 class LayoutException extends \Exception {
     const FAILED_TO_OPEN_FILE = 1;
+    const PARSE_ERROR = 2;
 }

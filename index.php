@@ -1,11 +1,8 @@
 <?php require_once __DIR__ . "/loader.php";
 
-use de\roccogossmann\php\funframes\Component;
-use \de\roccogossmann\php\funframes\Layout;
 use \de\roccogossmann\php\funframes\Page;
+header("content-type: text/plain");
+$oPage = Page::createFromLayout('./src/pages/index', './src/components');
 
-Page::create(Layout::load("./pages/index"))
-    ->setChildCompnent("content", Component::create(Layout::load("./components/debugging")))
-    ->loadData("./data/debugger.php") 
-    ->render()
-;
+//$oPage->render();
+
