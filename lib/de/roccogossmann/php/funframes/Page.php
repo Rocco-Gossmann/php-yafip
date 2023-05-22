@@ -2,24 +2,34 @@
 
 use de\roccogossmann\php\core\Utils;
 
-class Page extends Component {
+class ComponentChunk {
+    /** @var ComponentChunk[] */
+    public array  $components = [];
 
+    /** @var string|null */
+    public $data = null;
+}
+
+
+class Page extends Component {
 
     public static function createFromLayout($sPath, $sComponentsPath) {
 
         $oI = new static();
-
-        $oLayout = Layout::load($sPath);
+        $oI->oLayout = $oLayout = Layout::load($sPath);
 
         $aComponentTree = [];
+
+        /** @var ComponentChunk[] */ 
         $aProcessList = [];
+
+        /** @var string[] */ 
         $aProcessKeys = [];
-        $aDataTokens = [];
 
         $aCaches = [];
         
         foreach($oLayout->getTokens() as $sKey) {
-            $aComponentTree[$sKey] = [];
+            $aComponentTree[$sKey] = new ComponentChunk();
             $aProcessList[] = &$aComponentTree[$sKey];
             $aProcessKeys[] = $sKey;
         }
@@ -33,24 +43,20 @@ class Page extends Component {
                 $aLayoutTokens = $oLayout->getTokens();
                 if(count($aLayoutTokens)) {
                     foreach($aLayoutTokens as $sTokenKey) {
-                        $aProcessList[$iIndex][$sTokenKey] = [];
-                        $aProcessList[] = &$aProcessList[$iIndex][$sTokenKey];
+                        $aProcessList[$iIndex]->components[$sTokenKey] = new ComponentChunk();
+                        $aProcessList[] = &$aProcessList[$iIndex]->components[$sTokenKey];
                         $aProcessKeys[] = $sTokenKey;
                     }
                 }
-                else $aProcessList[$iIndex] = "empty";
             }
-            else $aProcessList[$iIndex] = "";
+            else $aProcessList[$iIndex]->data = "";
 
             $iIndex++;
         }
 
         $oI->aComponentTree = $aComponentTree;
-        $oI->aComponents = $aCaches;
-        $oI->aFlattenedTree = array_filter(Utils::flattenArray($oI->aComponentTree), fn($e) => strcmp($e, 'empty'));
+        $oI->aLayouts = $aCaches;
 
-        print_r($oI);
-        
         return $oI;
     }
 
@@ -63,15 +69,7 @@ class Page extends Component {
     private $aComponentTree = [];
     
     /** @var array a list of component instances */
-    private $aComponents = [];
-
-    /** @var array a 1 dimensional list of tokens, that can contain data 
-     * A token, that does not have a component assotiated with it, is concidered a data-token
-     */
-    private $aDataTokens = [];
-
-    /** @var array a 1 dimensional representation of all components an the Page */
-    private $aFlattenedTree = [];
+    private $aLayouts = [];
 
     /**
      * Loads data from a PHP-File 
@@ -94,7 +92,6 @@ class Page extends Component {
             $this->aData[strtolower($sKey)] = $mData;
 
         return $this;
-
     }
 
     public function render($prefix="") {

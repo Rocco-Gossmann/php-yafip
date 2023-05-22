@@ -5,58 +5,12 @@ namespace de\roccogossmann\php\funframes;
 use de\roccogossmann\php\core\Utils;
 
 class Component {
-
-    public static function createFromLayout($sPath, $sComponentsPath) {
-
-        $oI = new static();
-
-        $oI->oLayout = Layout::load($sPath);
-
-        $aComponentTree = [];
-        $aProcessList = [];
-        $aProcessKeys = [];
-
-        $aCaches = [];
-        
-        foreach($oI->oLayout->getTokens() as $sKey) {
-            $aComponentTree[$sKey] = [];
-            $aProcessList[] = &$aComponentTree[$sKey];
-            $aProcessKeys[] = $sKey;
-        }
-        
-        $iIndex = 0; 
-        while($sKey = array_shift($aProcessKeys)) {
-
-            $aList = $aProcessList[$iIndex];
- 
-            if(file_exists($sComponentsPath . "/" . $sKey)) { 
-                $oLayout = $aCaches[$sKey] ?? Layout::load($sComponentsPath . "/" . $sKey); 
-                $aCaches[$sKey] = $oLayout;
-
-                foreach($oLayout->getTokens() as $sTokenKey) {
-                    $aProcessList[$iIndex][$sTokenKey] = [];
-                    $aProcessList[] = &$aList[$sTokenKey];
-                    $aProcessKeys[] = $sTokenKey;
-                }
-            }
-
-            $iIndex++;
-        }
-
-        $oI->aComponentTree = $aComponentTree;
-
-        var_dump($oI->aComponentTree);
-
-        return $oI;
-    }
-
-
 //==============================================================================
 // Class - Methods
 //==============================================================================
 
     /** @var Layout */
-    private $oLayout = null;
+    protected $oLayout = null;
 
     /** @var Page */
     private $oTreeRoot = null;
