@@ -144,7 +144,7 @@ class Layout {
         }
     }
 
-    public function compile($sDefinitionFileName) {
+    protected function compile($sDefinitionFileName) {
         $hF = fopen($sDefinitionFileName, "w");
         if(!$hF)  throw new LayoutException("failed to open '$sDefinitionFileName'", LayoutException::FAILED_TO_OPEN_FILE);
 
