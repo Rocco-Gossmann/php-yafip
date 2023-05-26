@@ -1,7 +1,53 @@
 <?php namespace de\roccogossmann\php\funframes;
 
+
+/** 
+ * @property-read boolean $recompiled - defines if the layouts content changed after the last load
+ * @property-read string  $filepath - the path to the template file, that was defined by the user
+ * @property-read string  $hash - a sha256 representation of the current layoutfiles content
+ */
 class Layout {
-        
+
+    /**
+     * Load an already defined Template file
+     *
+     * @param string $sDefinitionFile the path to the template defintion file created by Layout::Create(...)->compile(...);
+     *
+     * @return static A valid Layout - Instance
+     */
+    public static function load($sDefinitionFile) {
+
+        $sRawFile = $sDefinitionFile."/layout.html";
+        $sDefinitionFile = $sDefinitionFile."/_layout.ff.php";
+
+        $oI = new static();
+        $bRecompile = false;
+        if(file_exists($sDefinitionFile)) {
+            include $sDefinitionFile;
+
+            if(!isset($hash) or !isset($file) or !isset($chunks)) 
+                throw new LayoutException("failed to open '$sDefinitionFileName' => does not fullfill expected format", LayoutException::FAILED_TO_OPEN_FILE);
+             
+            if($hash === hash_file("sha256", $file)) {
+
+                $oI->sRawFile = $file;
+                $oI->sFileHash = $hash;
+                $oI->aChunks = $chunks;
+                $oI->aTokens = $tokens;
+
+                return $oI;
+            }
+            else $bRecompile = true;        
+        }
+        else $bRecompile=true;
+
+        if($bRecompile) {
+            $oI = static::create($sRawFile);
+            $oI->compile($sDefinitionFile);
+            return $oI;
+        }
+    }
+
     /**
      * create a new Template out of a Raw HTML File
      *
@@ -9,7 +55,7 @@ class Layout {
      *
      * @return static returns a valid Layout Instance
      */
-    public static function create($sRawTemplateFile) {
+    protected static function create($sRawTemplateFile) {
         $oI = new static();
         
         $oI->sRawFile = $sRawTemplateFile;
@@ -78,7 +124,7 @@ class Layout {
                             if(strpos($sTPL, ".") !== false) 
                                 throw new LayoutException("tokens cant contain '.'", LayoutException::PARSE_ERROR);
 
-                            $aChunks[] = [$sTPLType, ];
+                            $aChunks[] = [$sTPLType, $sTPL];
                             $aTokens[$sTPL] = $sTPL;
                             $iLastChunkStart = $iReadHead;
                             $mode = 0;
@@ -98,51 +144,13 @@ class Layout {
         return $oI;
     }
 
+
     private $sRawFile = "";
     private $sFileHash = "";
     private $aChunks = [];
     private $aTokens = [];
 
-
-    /**
-     * Load an already defined Template file
-     *
-     * @param string $sDefinitionFile the path to the template defintion file created by Layout::Create(...)->compile(...);
-     *
-     * @return static A valid Layout - Instance
-     */
-    public static function load($sDefinitionFile) {
-
-        $sRawFile = $sDefinitionFile."/layout.html";
-        $sDefinitionFile = $sDefinitionFile."/layout.ff.php";
-
-        $oI = new static();
-        $bRecompile = false;
-        if(file_exists($sDefinitionFile)) {
-            include $sDefinitionFile;
-
-            if(!isset($hash) or !isset($file) or !isset($chunks)) 
-                throw new LayoutException("failed to open '$sDefinitionFileName' => does not fullfill expected format", LayoutException::FAILED_TO_OPEN_FILE);
-             
-            if($hash === hash_file("sha256", $file)) {
-
-                $oI->sRawFile = $file;
-                $oI->sFileHash = $hash;
-                $oI->aChunks = $chunks;
-                $oI->aTokens = $tokens;
-
-                return $oI;
-            }
-            else $bRecompile = true;        
-        }
-        else $bRecompile=true;
-
-        if($bRecompile) {
-            $oI = static::create($sRawFile);
-            $oI->compile($sDefinitionFile);
-            return $oI;
-        }
-    }
+    private $_recompilied = false;
 
     protected function compile($sDefinitionFileName) {
         $hF = fopen($sDefinitionFileName, "w");
@@ -159,38 +167,28 @@ class Layout {
 
     public function getTokens() { return $this->aTokens; }
 
-    public function render($slotCallback, $sPrefix="") {
+    public function chunks($slotCallback=null, $sPrefix="") {
         if(empty($this->aChunks)) return;
 
         $myPrefix = empty($sPrefix) ? "" : $sPrefix."."; 
 
         $hF = fopen($this->sRawFile, "r");
         if($hF) {
-
             foreach($this->aChunks as $aChunk) {
                 switch($aChunk[0]) {
                 case 'raw':
                     if((int)$aChunk[2] > 0) {
                         fseek($hF, $aChunk[1]);
-                        echo fread($hF, $aChunk[2]);
+                        yield [ 'type' => 'raw', 'text' => fread($hF, $aChunk[2]) ];
                     }
                     break;
 
                 case 'tpl':
-                case 'html':
-                    call_user_func($slotCallback, $aChunk[1], $aChunk[0] == 'html' ? 'raw' : 'html', $myPrefix . strtolower($aChunk[1]));
-                    break;
-
                 case 'dyn':
+                case 'html':
                 case 'dhtm':
-                    echo "<span data-phpff=\"", htmlspecialchars($myPrefix . strtolower($aChunk[1])), "\">";
-                    call_user_func(
-                        $slotCallback, $aChunk[1], 
-                        $aChunk[0] == 'dhtm' ? "raw" : 'html', 
-                        $myPrefix . strtolower($aChunk[1]));
-                    echo "</span>";
+                    yield [ 'type' => 'slot', 'specification' => $aChunk[0], 'slot' => $aChunk[1] ];
                     break;
-
                 }
             }
     
@@ -199,7 +197,14 @@ class Layout {
         } else throw new LayoutException("failed to open '{$$this->sRawFile}'", LayoutException::FAILED_TO_OPEN_FILE);
     }
 
+    public function __get($sPropName) { switch($sPropName) {
+        case 'recompiled': return $this->_recompilied;
+        case 'filepath':   return $this->sRawFile;
+        case 'hash':       return $this->sFileHash;
+    };}
+
     private function __constructor(){}
+
 }
 
 class LayoutException extends \Exception {

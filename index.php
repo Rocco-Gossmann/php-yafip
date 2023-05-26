@@ -2,7 +2,6 @@
 
 use \de\roccogossmann\php\funframes\Page;
 header("content-type: text/plain");
-$oPage = Page::createFromLayout('./src/pages/index', './src/components');
 
-//$oPage->render();
-
+$oPage = Page::load('index');
+$oPage->render();
