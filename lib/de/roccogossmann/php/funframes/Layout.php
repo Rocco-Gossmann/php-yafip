@@ -12,6 +12,8 @@ class Layout {
      * Load an already defined Template file
      *
      * @param string $sDefinitionFile the path to the template defintion file created by Layout::Create(...)->compile(...);
+     * 
+     * @throws LayoutException - if the file does not exist, has the wrong format or fail to compile
      *
      * @return static A valid Layout - Instance
      */

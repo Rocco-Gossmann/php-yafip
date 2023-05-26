@@ -1,64 +1,14 @@
 <?php
-
 namespace de\roccogossmann\php\funframes;
+
+require_once __DIR__ . "/ComponentChunk.php";
 
 use de\roccogossmann\php\core\Utils;
 use Exception;
 
+class Page {
 
-/** @property string $label the label as defined in the page/component file */
-class ComponentChunk
-{
-
-    /** @var ComponentChunk */
-    public ComponentChunk $parent;
-
-    /** @var ComponentChunk[] */
-    public array  $components = [];
-
-    /** @var string|null */
-    public $data = null;
-
-    /** @var Layout */
-    public $layout = null;
-
-    private $_sLabel = "";
-
-    public function __construct($sLabel)
-    {
-        $this->_sLabel = $sLabel;
-    }
-
-    public function __set($sField, $mValue)
-    {
-        switch ($sField) {
-            case "label":
-                $this->_sLabel = $mValue;
-        }
-    }
-
-    public function __get($sField)
-    {
-        switch ($sField) {
-            case "label":
-                return (empty($this->parent) ? '' : $this->parent->label . ".") . $this->_sLabel;
-            default:
-
-                if (isset($this->$sField)) return $this->$sField;
-        }
-    }
-
-    public function isDataChunk()
-    {
-        return !empty($this->data);
-    }
-}
-
-class Page
-{
-
-    public static function load($sPageName)
-    {
+    public static function load($sPageName) {
 
         $sPathDocRoot = rtrim($_SERVER['DOCUMENT_ROOT'], "\\/") . "/";
 
@@ -69,8 +19,8 @@ class Page
         $sPageTemplate = $sPagePath . "/_template.ff.php";
         $sPageCompiled = $sPagePath . "/_page.ff.php";
 
-        $oI = (file_exists($sPageCompiled))
-            ? static::fromCompiled($sPageCompiled)
+        $oI = (file_exists($sPageCompiled) && file_exists($sPageTemplate))
+            ? static::fromCompiled($sPageCompiled, $sPagePath, $sComponentPath)
             : static::createFromLayout($sPagePath, $sComponentPath)
                 ->compileTemplate($sPageTemplate)
                 ->compilePage($sPageCompiled)
@@ -78,7 +28,11 @@ class Page
 
         if(!$oI->fresh) {
             $bSpoiled=false;
-            foreach($oI->aLayouts as $oLayout) 
+
+            if($oI->oLayout->recompiled) 
+                $bSpoiled = true;
+
+            else foreach($oI->aLayouts as $oLayout) 
                 if($oLayout->recompiled) {
                     $bSpoiled = true;
                     break;
@@ -93,24 +47,75 @@ class Page
 
         }
 
+        $oI->sCompiledTemplateFile = $sPageTemplate;
+
         return $oI;
     }
 
 
     /**
-     * Generates a Page-Instances from an include file
+     * Recreate a Page-Instances that had been created in the past 
      *
      * @param string $sFile the file, that can be included
+     * @param string $sPath the path to the folder, that contains the mainlayout-html  (in case a recompilation is needed)
+     * @param string $sComponentsPath the path that contains all the components to be used by any layout  (in case a recompilation is needed)
      *
      * @return static
      */
-    protected static function fromCompiled($sFile)
-    {
-        throw new Exception("todo implement");
+    protected static function fromCompiled($sFile, $sPagePath, $sComponentPath) {
+        $meta = include $sFile;    
+
+        try {
+
+            if(!(   is_array($meta) 
+                and is_array($meta['mainlayout'] ?? false) 
+                and is_array($meta['sublayouts'] ?? false) 
+            )) throw new Exception("missing array field");
+
+            $oI = new static();
+
+            $oI->oLayout = Layout::load($meta['mainlayout'][1] ?? "");
+
+            foreach($meta['sublayouts'] as $sKey => $aSubLayout)
+                $oI->aLayouts[$sKey] = Layout::load($aSubLayout[1]);
+
+            if(!empty($meta['datafiles']) and is_array($meta['datafiles'])) {
+                $aData = [];
+
+                foreach($meta['datafiles'] as $sContext => $sDataFile) {
+                    $aCompData = file_exists($sDataFile) 
+                        ? include ($oI->aDataFiles[$sContext] = $sDataFile)
+                        : []
+                    ;
+
+                    $aFlattened = Utils::flattenArray($aCompData, null, $sContext);
+
+                    foreach($aFlattened as $sKey => &$mValue) 
+                        if(is_callable($mValue)) 
+                            $mValue = $mValue($sKey, $oI->aData[$sKey] ?? null);
+
+                    Utils::mutateArrayRecursive($oI->aData, $aFlattened);
+
+                }
+            }
+            return $oI;
+
+        } 
+        catch(Exception $ex) {
+            unlink($sFile);
+            return self::createFromLayout($sPagePath, $sComponentPath);
+        }
     }
 
-    protected static function createFromLayout($sPath, $sComponentsPath)
-    {
+    /**
+     * Create a new instance based on a given layout 
+     *
+     * @param string $sPath the path to the folder, that contains the mainlayout-html
+     * @param string $sComponentsPath the path that contains all the components to be used by any layout
+     *
+     * @return Page 
+     */
+    protected static function createFromLayout($sPath, $sComponentsPath) {
         $oI = new static();
         $oI->oLayout = $oLayout = Layout::load($sPath);
         $oI->fresh = true;
@@ -131,11 +136,13 @@ class Page
         $aDataFiles = [];
 
         $aData = file_exists($sPath . "/data.php") 
-            ? include ($aDataFiles[] = $sPath . "/data.php")
+            ? include ($aDataFiles[""] = $sPath . "/data.php")
             : []
         ;
 
         if (!is_array($aData)) $aData = [];
+
+        $aContextList = [];
 
         foreach ($oLayout->getTokens() as $sKey) {
             $aComponentTree[$sKey] = new ComponentChunk($sKey);
@@ -143,6 +150,7 @@ class Page
             $aProcessKeys[] = $sKey;
             $aData[$sKey] = [];
             $aDataProcess[] = &$aData[$sKey];
+            $aContextList[] = $sKey;
         }
 
         $iIndex = 0;
@@ -153,7 +161,7 @@ class Page
                 $aProcessList[$iIndex]->layout = $oLayout;
 
                 $aCompData = file_exists($sComponentsPath . "/" . $sKey . "/data.php") 
-                    ? include ($aDataFiles[] = $sComponentsPath . "/" . $sKey . "/data.php") 
+                    ? include ($aDataFiles[$aContextList[$iIndex]] = $sComponentsPath . "/" . $sKey . "/data.php") 
                     : []
                 ;
 
@@ -173,6 +181,7 @@ class Page
                         $aProcessList[] = &$aProcessList[$iIndex]->components[$sTokenKey];
                         $aProcessKeys[] = $sTokenKey;
                         $aDataProcess[] = &$aDataProcess[$iIndex][$sTokenKey];
+                        $aContextList[] = (empty($_ = $aContextList[$iIndex]) ? "" : $_) . "." . $sTokenKey;
                     }
                 }
             } else {
@@ -210,23 +219,25 @@ class Page
     /** @var array the list of components as they are arranged by the layout */
     private $aComponentTree = [];
 
-
+    /** @var string the name of the compiled template file, to be included during render */
+    private $sCompiledTemplateFile = "";
+    
 
     protected function compilePage($sOutputFile) {
 
         $_data = [
-              'mainlayout' => [ $this->oLayout->hash, $this->oLayout->filepath ]
+              'mainlayout' => [ $this->oLayout->hash, dirname($this->oLayout->filepath) ]
             , 'sublayouts' => []
             , 'datafiles' => $this->aDataFiles 
         ];
 
-        foreach($this->aLayouts as $oLayout) 
-            $_data['sublayouts'][] = [ $oLayout->hash, $oLayout->filepath ];
+        foreach($this->aLayouts as $sKey => $oLayout) 
+            $_data['sublayouts'][$sKey] = [ $oLayout->hash, dirname($oLayout->filepath) ];
 
         $hF = fopen($sOutputFile, "w");
         if(!$hF) throw PageException::noFile($sOutputFile);
 
-        fwrite($hF, "<?php\n\n\$_data=");
+        fwrite($hF, "<?php\n\nreturn ");
         fwrite($hF, var_export($_data, true));
         fwrite($hF, ";");
 
@@ -237,9 +248,7 @@ class Page
     }
 
     /**
-     * Brings the Page and all of its components into a precached format.
-     * 2 new files are created in the layouts directory "_template.ff.php" which is the combined prerender of all components
-     *                                              and "_page.ff.php" which contains all the metadata, regarding the prerender
+     * Prerenders the entire pages (with exception to its data-components)
      *
      * @param string $sOutputFile the file, the content will be rendered to 
      *
@@ -248,10 +257,8 @@ class Page
      *
      * @return static - returns $this, because builder-pattern
      */
-    protected function compileTemplate($sOutputFile)
-    {
-        function recurse(Layout $oLayout, $hCacheFile, $me, &$aBranchRoot, $sSlot = "", $sPrefix = "")
-        {
+    protected function compileTemplate($sOutputFile) {
+        function recurse(Layout $oLayout, $hCacheFile, $me, &$aBranchRoot, $sSlot = "", $sPrefix = "") {
             foreach ($oLayout->chunks() as $aChunk) {
                 switch ($aChunk['type']) {
                     case "raw":
@@ -262,7 +269,7 @@ class Page
                         if (isset($aBranchRoot[$aChunk['slot']])) {
                             /** @var ComponentChunk */
                             $oChunk = $aBranchRoot[$aChunk['slot']];
-                            if (empty($oChunk->layout)) fwrite($hCacheFile, "<?php printData('{$oChunk->label}'); ?>");
+                            if (empty($oChunk->layout)) fwrite($hCacheFile, "<?php \$this->renderData('{$oChunk->label}'); ?>");
                             else                        recurse($oChunk->layout, $hCacheFile, $me, $oChunk->components, $aChunk['slot'], $sPrefix . "." . $sSlot);
                         }
                         break;
@@ -292,15 +299,28 @@ class Page
         return $this;
     }
 
-    public function render($prefix = "")
-    {
-        echo "<!DOCTYPE html>";
-        //TODO: render styles and scripts
-        //parent::render();
+    /**
+     * Used by the include inside $this->render()
+     *
+     * @param string $sToken the data-token
+     *
+     * @return void 
+     */
+    private function renderData($sToken) {
+
+        $mToken = $this->aData[$sToken] ?? "";
+
+        if(is_callable($mToken)) $mToken();
+        else echo $mToken;
+
     }
 
-    public function getData($sPath)
-    {
+    public function render() {
+        echo "<!DOCTYPE html>";
+        include $this->sCompiledTemplateFile;
+    }
+
+    public function getData($sPath) {
         return $this->aData[$sPath] ?? false;
     }
 
@@ -318,13 +338,11 @@ class PageException extends \Exception
     const NO_EVNVAR    = 2;
     const MISSING_PAGE = 3;
 
-    public static function noFile($sFileName)
-    {
+    public static function noFile($sFileName) {
         return new static("missing file of failed to create '$sFileName'", static::NO_FILE);
     }
 
-    public static function noEnvVar($sVarName)
-    {
+    public static function noEnvVar($sVarName) {
         return new static("Missing Environment-Varable '$sVarName' please define it first", static::NO_EVNVAR);
     }
 
