@@ -1,7 +1,11 @@
-[submodule "lib/de/roccogossmann/php/workspace"]
-    path = lib/de/roccogossmann/php/workspace
-    url = git@github.com:Rocco-Gossmann/php-workspace.git
-[submodule "lib/de/roccogossmann/php/core"]
-    path = lib/de/roccogossmann/php/core
-    url = git@github.com:Rocco-Gossmann/php-core.git
-    branch = 1.0
+[submodule "lib/rogoss/workspace"]
+	path = lib/rogoss/workspace
+	url = git@github.com:Rocco-Gossmann/php-workspace.git
+	branch = 1.1
+[submodule "lib/rogoss/core"]
+	path = lib/rogoss/core
+	url = git@github.com:Rocco-Gossmann/php-core.git
+	branch = 1.1
+[submodule "lib/rogoss/yafip"]
+	path = lib/rogoss/yafip
+	url = git@github.com:Rocco-Gossmann/php-yafip-lib.git
