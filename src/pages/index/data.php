@@ -22,7 +22,7 @@
                                                                 //     will then show the value returned by the function
                                                                 
             return function() {                 // <-- but this callable can also return another callable.
-                echo "FunFrames !!!<small>"     //     the returned callable will run, whenever the field is to be rendered
+                echo "FunFrames !!!<br /><small>"     //     the returned callable will run, whenever the field is to be rendered
                    , rand(true, false)          //     there is no return here. everything echoed / printed 
                         ? "aren't they fun?"    //     lands directly in the output
                         : "so much fun"
