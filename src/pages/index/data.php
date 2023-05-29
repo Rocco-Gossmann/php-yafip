@@ -25,7 +25,7 @@
 
         "title" => function($sKey, $mPrev) {            // Function Data fields can also return a Callable
                                                         // The Callable will be exectuted, when ever the field is renderd
-            return function($sShort="", $sBold="") {    // You can pass arguments to that callable by adding a ":" to your datafields  
+            return function($sShort="", $sBold="") {   // You can pass arguments to that callable by adding a ":" to your datafields  
                 if(!empty($sBold)) echo "<b>";          // for example [[--title:short--]]
 
 

@@ -111,6 +111,7 @@ The rest will be handled by the environment var we set up earlier.
 
 
 ## Roadmap:
+- ⬜ function to let components add CSS and JS defintiions to the Pages head
 - ⬜ Figure out, how to do Wikis on GitHub
 - ⬜ Explain Components
 - ✔️ Finish example
