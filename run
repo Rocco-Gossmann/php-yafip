@@ -1,6 +1,7 @@
 #!/bin/bash
 
-export DE_ROCCOGOSSMANN_PHP_FUNFRAMES_PAGESROOT="src/pages" 
-export DE_ROCCOGOSSMANN_PHP_FUNFRAMES_COMPONENTSROOT="src/components" 
+export ROGOSS_YAFIP_VERSION="1.2-dev" 
+export ROGOSS_YAFIP_PAGESROOT="src/pages" 
+export ROGOSS_YAFIP_COMPONENTSROOT="src/components" 
 php -S 127.0.0.1:58008
 

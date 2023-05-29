@@ -111,8 +111,9 @@ The rest will be handled by the environment var we set up earlier.
 
 
 ## Roadmap:
+- ⬜ Figure out, how to do Wikis on GitHub
 - ⬜ Explain Components
-- ⬜ Finish example
+- ✔️ Finish example
 - ✔️ set everything up to be cloned
 
 

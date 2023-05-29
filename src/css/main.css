@@ -1,0 +1,13 @@
+ASIDE {
+    display: inline-block;
+}
+
+NAV.burgermenu {
+    display: none;
+}
+
+@media(min-width: 720px) {
+    NAV.burgermenu {
+        display: none;
+    }
+}
